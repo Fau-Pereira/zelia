@@ -1,79 +1,72 @@
 import os
-import logging
 from dotenv import load_dotenv
-
-# Importações do LangChain
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
 
-# Configuração do logging para este arquivo também
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+load_dotenv()
 
-# --- CONFIGURAÇÃO E INICIALIZAÇÃO DOS COMPONENTES DE IA ---
-
-# Carregamento robusto das variáveis de ambiente, igual ao process_data.py
+# Caminho do banco de dados
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
-load_dotenv(ENV_PATH)
-
 PERSIST_DIRECTORY = os.path.join(SCRIPT_DIR, "chroma_db")
 
-# VERIFICAÇÃO: Checar se o banco de dados existe antes de tentar carregar
-if not os.path.exists(PERSIST_DIRECTORY):
-    logging.error(f"Diretório do banco de dados não encontrado em '{PERSIST_DIRECTORY}'.")
-    logging.error("Por favor, execute o script 'process_data.py' primeiro para criar o banco de dados.")
-    # Em um cenário real, poderíamos usar sys.exit(1), mas aqui apenas avisamos.
-    # A aplicação FastAPI ainda vai rodar, mas as buscas falharão.
-    
-# Inicializa o modelo de embeddings
-logging.info("Inicializando o modelo de embeddings para consulta...")
+# 1. Configurar Modelos (Exatamente os mesmos que já estavam a funcionar!)
 embeddings_model = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
 
-# Carrega o banco de dados vetorial já existente
-logging.info(f"Carregando o banco de dados vetorial de: {PERSIST_DIRECTORY}...")
+# 2. Conectar ao Banco de Dados
 vector_store = Chroma(
     persist_directory=PERSIST_DIRECTORY,
     embedding_function=embeddings_model
 )
+retriever = vector_store.as_retriever(search_kwargs={"k": 4})
 
-# Inicializa o modelo de linguagem (LLM)
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
-logging.info("Componentes de IA prontos.")
+# 3. O NOVO PROMPT (Agora com espaço para o histórico)
+template = """Você é a Zélia, a assistente virtual da universidade. 
+Sua função é responder a dúvidas dos alunos baseando-se APENAS nos trechos do manual fornecidos.
 
-# (O resto da função get_rag_response continua exatamente o mesmo...)
-def get_rag_response(query: str) -> str:
-    logging.info(f"Iniciando busca por: '{query}'")
-    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+Histórico recente da conversa:
+{historico_conversa}
+
+Trechos do manual encontrados:
+{context}
+
+Pergunta atual do aluno: {question}
+
+Responda de forma clara, educada e direta. Se a resposta não estiver nos trechos do manual, diga que não tem essa informação no momento.
+Resposta:"""
+
+QA_PROMPT = PromptTemplate(
+    template=template,
+    input_variables=["historico_conversa", "context", "question"]
+)
+
+# 4. A Função RAG Atualizada
+def get_rag_response(query: str, history: list = None) -> str:
+    if history is None:
+        history = []
+        
+    # Formata o histórico de uma lista para um texto legível para a IA
+    historico_texto = ""
+    # Pegamos apenas as últimas 4 mensagens para não sobrecarregar a memória
+    for msg in history[-4:]: 
+        remetente = "Aluno" if msg["role"] == "user" else "Zélia"
+        historico_texto += f"{remetente}: {msg['content']}\n"
+        
+    if not historico_texto:
+        historico_texto = "Nenhuma conversa anterior."
+
+    # Busca documentos relevantes
     relevant_docs = retriever.invoke(query)
-
-    context = ""
-    for doc in relevant_docs:
-        context += f"\nFonte: {doc.metadata.get('source', 'N/A')}, Página: {doc.metadata.get('page', 'N/A')}\n"
-        context += f"Conteúdo: {doc.page_content}\n"
-        context += "---\n"
-
-    template = """
-    Você é Zélia uma assistente prestativo do Centro Universitário Jorge Amado. Sua tarefa é responder à pergunta do aluno
-    baseando-se SOMENTE no seguinte contexto extraído do Manual do Aluno e do Calendário Acadêmico.
-
-    CONTEXTO:
-    {context}
-
-    PERGUNTA DO ALUNO:
-    {question}
-
-    INSTRUÇÕES:
-    1. Responda de forma clara e direta.
-    2. Se a resposta estiver no contexto, responda e CITE A FONTE E A PÁGINA de onde tirou a informação.
-    3. Se a resposta NÃO ESTIVER no contexto, diga "Não encontrei essa informação nos documentos disponíveis. Por favor, procure a secretaria acadêmica."
-    4. Não invente informações.
-    """
-    prompt = PromptTemplate(template=template, input_variables=["context", "question"])
-
-    final_prompt = prompt.format(context=context, question=query)
-
-    logging.info("Enviando prompt para o LLM...")
+    contexto = "\n\n".join([doc.page_content for doc in relevant_docs])
+    
+    # Preenche o prompt com o histórico, contexto e a pergunta
+    final_prompt = QA_PROMPT.format(
+        historico_conversa=historico_texto,
+        context=contexto, 
+        question=query
+    )
+    
+    # Chama o Gemini
     response = llm.invoke(final_prompt)
-
     return response.content

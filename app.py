@@ -1,51 +1,75 @@
 import streamlit as st
 import requests
 
-# 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Zél.IA", page_icon="🎓", layout="centered")
+# 1. CONFIGURAÇÃO DA PÁGINA (Aba do browser)
+# Tem de ser o primeiro comando do Streamlit!
+st.set_page_config(
+    page_title="Zélia - Assistente Académica",
+    page_icon="🎓",
+    layout="centered"
+)
 
-st.title("🎓 Assistente Virtual - Zélia")
-st.write("Olá! Sou a Zália, a assistente da Unijorge. Faça perguntas sobre o manual ou o calendário acadêmico e eu tentarei ajudar!")
+# 2. BARRA LATERAL (Sidebar)
+with st.sidebar:
+    # Pode substituir o link abaixo por um URL do logótipo da sua universidade
+    st.image("https://cdn-icons-png.flaticon.com/512/8066/8066119.png", width=120) 
+    st.title("Sobre a Zélia")
+    st.info(
+        "Olá, sou a Zélia, a assistente virtual da Unijorge, criada para ajudar com dúvidas sobre o "
+        "**Manual do Aluno** e processos académicos."
+    )
+    st.divider() # Linha de separação
+    
+    # Botão para limpar a memória da conversa
+    if st.button("🗑️ Limpar Conversa", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun() # Atualiza o ecrã instantaneamente
 
-# URL da sua API FastAPI (que está rodando no outro terminal)
+# 3. CABEÇALHO PRINCIPAL
+st.title("🎓 Zélia - Atendimento ao Aluno")
+st.markdown("Olá! Pergunte-me o que precisar sobre regras, matrículas, faltas e muito mais.")
+
 API_URL = "http://127.0.0.1:8000/perguntar"
 
-# 2. INICIALIZAÇÃO DO HISTÓRICO DE CHAT
-# O Streamlit recarrega a página a cada clique. Isso garante que não percamos a conversa.
+# Inicializa o histórico se estiver vazio
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Exibe as mensagens antigas na tela
+# 4. EXIBIR MENSAGENS COM AVATARES PERSONALIZADOS
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    # Define o ícone com base em quem está a falar
+    avatar_icon = "🧑‍🎓" if message["role"] == "user" else "👩‍🏫"
+    with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
 
-# 3. CAPTURA A NOVA PERGUNTA DO USUÁRIO
-if prompt := st.chat_input("Ex: Quantas faltas posso ter na disciplina?"):
+# 5. CAIXA DE TEXTO E ENVIO
+if prompt := st.chat_input("Ex: Qual o prazo para trancamento de matrícula?"):
     
-    # Adiciona a pergunta do usuário no histórico e na tela
+    # Mostra a pergunta do aluno no ecrã
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🧑‍🎓"):
         st.markdown(prompt)
 
-    # 4. CHAMA A SUA API FASTAPI (O SEU BACKEND)
-    with st.chat_message("assistant"):
+    # Chama a API e mostra a resposta da Zélia
+    with st.chat_message("assistant", avatar="👩‍🏫"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("Consultando o manual... ⏳")
+        message_placeholder.markdown("A consultar o manual... ⏳")
         
         try:
-            # Envia a pergunta para o seu servidor
-            response = requests.post(API_URL, json={"query": prompt})
+            # Envia a pergunta E o histórico
+            payload = {
+                "query": prompt,
+                "history": st.session_state.messages
+            }
+            
+            response = requests.post(API_URL, json=payload)
             
             if response.status_code == 200:
-                # Se deu tudo certo, pega a resposta gerada pelo Gemini + RAG
-                resposta_ia = response.json().get("answer", "Desculpe, não entendi a resposta da API.")
+                resposta_ia = response.json().get("answer", "Desculpe, não consegui obter a resposta.")
                 message_placeholder.markdown(resposta_ia)
-                
-                # Salva a resposta da IA no histórico
                 st.session_state.messages.append({"role": "assistant", "content": resposta_ia})
             else:
                 message_placeholder.markdown(f"❌ Erro na API: Status {response.status_code}")
-        
+                
         except requests.exceptions.ConnectionError:
-            message_placeholder.markdown("❌ Erro de conexão. Verifique se o servidor FastAPI (uvicorn) está rodando no outro terminal!")
+            message_placeholder.markdown("❌ Erro de ligação ao servidor FastAPI!")
