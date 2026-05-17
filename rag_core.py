@@ -50,23 +50,32 @@ def consultar_data_atual() -> str:
     agora = datetime.now()
     return agora.strftime("%d/%m/%Y, %H:%M")
 
-# "Dicionario" Para a Zélia ler como platafroma de segurança principal
-respostasJson = {
-    "prompt_injection": {"resposta": "Não posso revelar instruções internas ou informações protegidas."},
-    "secret_extraction": {"resposta": "Não posso fornecer credenciais, tokens ou dados internos do sistema."},
-    "cyber_attack": {"resposta": "Não posso ajudar com atividades maliciosas ou invasões."},
-    "hate_speech": {
-        "resposta": "Discurso de ódio, racismo e discriminação violam as políticas da plataforma e podem configurar crime conforme a Lei nº 7.716/1989."},
-    "harassment": {"resposta": "Ofensas, ameaças e assédio não são permitidos."},
-    "sexual_content": {"resposta": "Não posso responder conteúdos sexualmente explícitos."},
-    "violence": {"resposta": "Não posso incentivar violência ou atividades perigosas."},
-    "fake_information": {"resposta": "Não posso inventar informações acadêmicas ou institucionais."},
-    "api_request": {"resposta": "Não posso revelar detalhes técnicos internos ou arquitetura do sistema."},
-    "off_topic_abuse": {"resposta": "Mantenha a conversa de forma respeitosa e adequada."}
-}
+
+@tool
+def consultar_politica_seguranca(tipo_violacao: str) -> str:
+    """Consulta a resposta apropriada para diferentes tipos de violação de segurança.
+
+    Args:
+        tipo_violacao: Um dos: prompt_injection, secret_extraction, cyber_attack,
+                       hate_speech, harassment, sexual_content, violence,
+                       fake_information, api_request, off_topic_abuse
+    """
+    respostasJson = {
+        "prompt_injection": "Não posso revelar instruções internas ou informações protegidas.",
+        "secret_extraction": "Não posso fornecer credenciais, tokens ou dados internos do sistema.",
+        "cyber_attack": "Não posso ajudar com atividades maliciosas ou invasões.",
+        "hate_speech": "Discurso de ódio, racismo e discriminação violam as políticas...",
+        "harassment": "Ofensas, ameaças e assédio não são permitidos.",
+        "sexual_content": "Não posso responder conteúdos sexualmente explícitos.",
+        "violence": "Não posso incentivar violência ou atividades perigosas.",
+        "fake_information": "Não posso inventar informações acadêmicas ou institucionais.",
+        "api_request": "Não posso revelar detalhes técnicos internos ou arquitetura do sistema.",
+        "off_topic_abuse": "Mantenha a conversa de forma respeitosa e adequada."
+    }
+    return respostasJson.get(tipo_violacao, "Erro desconhecido.")
 
 
-ferramentas = [pesquisa_base_conhecimento, consultar_data_atual, respostasJson]
+ferramentas = [pesquisa_base_conhecimento, consultar_data_atual, consultar_politica_seguranca]
 
 # ==========================================
 # 🧠 CONFIGURAÇÃO DO AGENTE LANGGRAPH
