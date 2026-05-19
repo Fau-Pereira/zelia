@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Esta seção importa as ferramentas necessárias para ler pastas, PDFs (com ou sem imagem)
 # e transformar os textos em vetores matemáticos (embeddings) que a IA entende.
 # ÚLTIMA ALTERAÇÃO: Substituímos o PyPDFLoader pelo DirectoryLoader e UnstructuredPDFLoader, e atualizamos o import do Chroma.
-from langchain_community.document_loaders import DirectoryLoader, UnstructuredPDFLoader
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -44,11 +44,7 @@ def processar_e_salvar_documentos(docs_dir: str, persist_directory: str):
         loader = DirectoryLoader(
             docs_dir,
             glob="**/*.pdf",
-            loader_cls=UnstructuredPDFLoader,
-            loader_kwargs={
-                "strategy": "auto",
-                "languages": ["por"] # Avisa o OCR que o texto está em português!
-            } 
+            loader_cls=PyPDFLoader
         )
         documentos = loader.load()
     except Exception as e:

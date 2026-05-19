@@ -53,7 +53,7 @@ if prompt := st.chat_input("Ex: Qual o prazo para trancamento de matrícula?"):
     # Chama a API e mostra a resposta da Zélia
     with st.chat_message("assistant", avatar="👩‍🏫"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("A consultar o manual... ⏳")
+        message_placeholder.markdown("Pensando... ⏳")
         
         try:
             # Envia a pergunta E o histórico
