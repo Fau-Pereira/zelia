@@ -1,0 +1,31 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: zelia_brain
+    volumes:
+      - ./ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  zelia-api:
+    build: .
+    container_name: zelia_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - .:/app
+      - ./chroma_db:/app/chroma_db
+
+  zelia-frontend:
+    build: .
+    container_name: zelia_ui
+    command: streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://zelia-api:8000/perguntar
+    depends_on:
+      - zelia-api
